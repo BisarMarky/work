@@ -1,0 +1,80 @@
+---
+
+ - name: Setting up packages
+   hosts: taiga
+   become: yes
+
+   tasks:
+
+   - name: setting up dependencies
+     apt: 
+       update_cache: yes
+       name: 
+         - build-essential
+         - binutils-doc
+         - autoconf
+         - flex 
+         - bison 
+         - libjpeg-dev
+     
+   - name: setting up dependencies (libs)
+     apt: 
+       update_cache: yes
+       name: 
+         - libfreetype6-dev
+         - zlib1g-dev
+         - libzmq3-dev
+         - libgdbm-dev 
+         - libncurses5-dev
+
+   - name: setting up dependencies (tools)
+     apt: 
+       update_cache: yes
+       name: 
+         - automake
+         - libtool
+         - curl
+         - git
+         - tmux
+         - gettext     
+   
+   - name: setting up NGINX
+     apt: 
+       update_cache: yes
+       name: 
+         - nginx
+
+   - name: setting up RMQ
+     apt: 
+       update_cache: yes
+       name: 
+         - rabbitmq-server
+
+   - name: setting up Redis
+     apt: 
+       update_cache: yes
+       name: 
+         - redis-server
+        
+   - name: setting up PostgreSQL
+     apt: 
+       update_cache: yes
+       name: 
+         - postgresql-9.5
+         - postgresql-contrib-9.5
+         - postgresql-doc-9.5
+         - postgresql-server-dev-9.5
+
+   - name: setting up Python3
+     apt: 
+       update_cache: yes
+       name: 
+         - python3
+         - python3-pip
+         - python3-dev
+         - virtualenvwrapper
+         - libxml2-dev
+         - libxslt-dev
+         - libssl-dev
+         - libffi-dev
+

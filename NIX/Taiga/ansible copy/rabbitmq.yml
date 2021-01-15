@@ -1,0 +1,11 @@
+---
+- hosts: taiga
+  become: yes
+  
+  tasks:
+
+  - name: add rmq user
+    shell: |  
+      rabbitmqctl add_user taiga DBApril13
+      rabbitmqctl add_vhost taiga
+      rabbitmqctl set_permissions -p taiga taiga ".*" ".*" ".*"

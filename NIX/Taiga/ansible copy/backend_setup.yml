@@ -1,0 +1,13 @@
+---
+- hosts: taiga
+  user: taiga
+  become: yes
+  
+  tasks:
+
+  - name: copy backend from git
+    shell: |
+      git clone https://github.com/taigaio/taiga-back.git /home/taiga/taiga-back
+      chown -R taiga:taiga /home/taiga
+      cd /home/taiga/taiga-back
+      git checkout stable

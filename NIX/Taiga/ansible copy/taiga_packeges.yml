@@ -78,3 +78,8 @@
          - libssl-dev
          - libffi-dev
 
+   - name: Ensure a locale exists
+     locale_gen:
+       name: ru_RU.UTF-8
+       state: present
+

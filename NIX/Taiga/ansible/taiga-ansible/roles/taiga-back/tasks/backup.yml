@@ -1,0 +1,86 @@
+---
+- name: set facts for backup
+  become: false
+  set_fact:
+    _backup_staging: "{{ taiga_user_home }}/backup/{{ _timestamp }}"
+    _backup_archive: "{{ taiga_user_home }}/backup/{{ _timestamp }}/{{ _timestamp }}.tar.bz2"
+  tags:
+    - backup
+    - offline
+
+- name: create local backup directory
+  become: false
+  file:
+    path: "backup"
+    state: directory
+  delegate_to: localhost
+  tags:
+    - backup
+    - offline
+
+- name: create remote backup staging directory
+  become: true
+  become_user: taiga
+  file:
+    path: "{{ _backup_staging }}"
+    state: directory
+  tags:
+    - backup
+    - offline
+
+- name: create PostgreSQL database dump
+  become: true
+  become_user: taiga
+  postgresql_db:
+    name: "{{ taiga_back_database_name }}"
+    login_user: "{{ taiga_back_database_user }}"
+    state: dump
+    target: "{{ _backup_staging }}/{{ taiga_back_database_name }}.sql"
+  tags:
+    - backup
+    - offline
+
+- name: copy media directory
+  become: true
+  become_user: taiga
+  synchronize:
+    src:  "{{ taiga_user_home }}/{{ taiga_back_checkout_dir }}/media"
+    dest: "{{ _backup_staging }}/"
+  delegate_to: "{{ inventory_hostname }}"
+  tags:
+    - backup
+    - offline
+
+- name: archive backup
+  become: true
+  become_user: taiga
+  archive:
+    path: "{{ _backup_staging }}/*"
+    dest: "{{ _backup_archive }}"
+    format: bz2
+  tags:
+    - backup
+    - offline
+  when: not ansible_check_mode
+
+- name: fetch backup archive
+  become: true
+  become_user: root
+  fetch:
+    src:  "{{ _backup_archive }}"
+    dest: "backup/"
+    flat: true
+  tags:
+    - backup
+    - offline
+
+- name: remove remote backup staging directory
+  become: true
+  become_user: taiga
+  file:
+    path: "{{ _backup_staging }}"
+    state: absent
+  tags:
+    - backup
+    - offline
+

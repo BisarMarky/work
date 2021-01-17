@@ -1,0 +1,153 @@
+from .common import *
+
+{% set scheme = 'https' if (taiga_enable_ssl | bool) else 'http' %}
+
+MEDIA_URL = "{{ scheme }}://{{ taiga_frontend_host }}/media/"
+STATIC_URL = "{{ scheme }}://{{ taiga_frontend_host }}/static/"
+for site in ["front", "api"]:
+    SITES[site]["scheme"] = "{{ scheme }}"
+    SITES[site]["domain"] = "{{ taiga_frontend_host }}"
+
+SECRET_KEY = "{{ taiga_secret_key }}"
+
+DATABASES = {
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": "{{ taiga_back_database_name }}",
+        "USER": "{{ taiga_back_database_user }}",
+    }
+}
+
+ADMINS = (
+    ("Admin", "{{ taiga_admin_email }}"),
+)
+
+DEBUG = {{ taiga_debug | bool }}
+PUBLIC_REGISTER_ENABLED = {{ taiga_enable_public_register | bool }}
+
+DEFAULT_FROM_EMAIL = "{{ taiga_back_default_from_email }}"
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+CELERY_ENABLED = {{ taiga_enable_async_tasks | bool }}
+
+{% if taiga_enable_events | bool %}
+EVENTS_PUSH_BACKEND = "taiga.events.backends.rabbitmq.EventsPushBackend"
+EVENTS_PUSH_BACKEND_OPTIONS = {"url": "amqp://{{ taiga_rabbitmq_user }}:{{ taiga_rabbitmq_password }}@{{ taiga_rabbitmq_host }}:{{ taiga_rabbitmq_port }}/{{ taiga_rabbitmq_vhost }}"}
+{% endif %}
+
+{% if taiga_enable_email | bool %}
+# Uncomment and populate with proper connection parameters
+# for enable email sending. EMAIL_HOST_USER should end by @domain.tld
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_USE_TLS = {{ taiga_email_use_tls | bool }}
+EMAIL_HOST = "{{ taiga_email_host }}"
+EMAIL_HOST_USER = "{{ taiga_email_host_user }}"
+EMAIL_HOST_PASSWORD = "{{ taiga_email_host_password }}"
+EMAIL_PORT = {{ taiga_email_port }}
+{% endif %}
+
+{% if taiga_enable_slack | bool %}
+INSTALLED_APPS += ["taiga_contrib_slack"]
+{% endif %}
+
+{% if taiga_enable_github_login | bool %}
+GITHUB_API_CLIENT_ID = "{{ taiga_github_api_client_id }}"
+GITHUB_API_CLIENT_SECRET = "{{ taiga_github_api_client_secret }}"
+{% endif %}
+
+GITLAB_VALID_ORIGIN_IPS = {{ taiga_gitlab_valid_origin_ips }}
+
+SR = {
+    "taigaio_url": "https://taiga.io",
+    "social": {
+        "twitter_url": "https://twitter.com/{{ taiga_twitter_handle }}",
+        "github_url": "https://github.com/{{ taiga_github_organization }}",
+    },
+    "support": {
+        "url": "{{ taiga_support_url }}",
+        "email": "{{ taiga_support_email }}",
+        "mailing_list": "{{ taiga_support_mailing_list }}",
+    }
+}
+
+{% if taiga_enable_ldap_login | bool %}
+INSTALLED_APPS += ["taiga_contrib_ldap_auth"]
+
+LDAP_SERVER = '{{ taiga_ldap_server }}'
+LDAP_PORT = {{ taiga_ldap_port }}
+
+{% if taiga_ldap_bind_dn %}
+LDAP_BIND_DN = '{{ taiga_ldap_bind_dn }}'
+LDAP_BIND_PASSWORD = '{{ taiga_ldap_bind_password }}'
+{% endif %}
+
+LDAP_SEARCH_BASE = '{{ taiga_ldap_search_base }}'
+
+LDAP_SEARCH_PROPERTY = '{{ taiga_ldap_search_property }}'
+LDAP_SEARCH_SUFFIX = '{{ taiga_ldap_search_suffix }}'
+
+LDAP_EMAIL_PROPERTY = '{{ taiga_ldap_email_property }}'
+LDAP_FULL_NAME_PROPERTY = '{{ taiga_ldap_full_name_property }}'
+{% endif %}
+
+{% if taiga_enable_saml_login | bool %}
+INSTALLED_APPS += ["taiga_contrib_saml_auth"]
+
+SAML_AUTH = {
+  'sp': {
+{% if taiga_saml_sp_name_id_format %}
+    'NameIDFormat': '{{ taiga_saml_sp_name_id_format }}',
+{% endif %}
+    'x509cert': open('{{ _taiga_ssl_certificate_path }}', 'r').read(),
+    'privateKey': open('{{ _taiga_ssl_key_path }}', 'r').read(),
+  },
+  'idp': {
+    'entityId': '{{ taiga_saml_idp_entity_id }}',
+    'singleSignOnService': {
+      'url': '{{ taiga_saml_idp_single_sign_on_url }}',
+      'binding': '{{ taiga_saml_idp_single_sign_on_binding }}',
+    },
+    'singleLogoutService': {
+{% if taiga_saml_idp_single_logout_url %}
+      'url': '{{ taiga_saml_idp_single_logout_url }}',
+{% else %}
+      'url': '{{ taiga_saml_idp_single_sign_on_url }}',
+{% endif %}
+      'binding': '{{ taiga_saml_idp_single_logout_binding }}',
+    },
+{% if taiga_saml_idp_cert %}
+    'x509cert': '{{ taiga_saml_idp_cert }}',
+{% else %}
+    'certFingerprint': '{{ taiga_saml_idp_cert_fingerprint }}',
+{% endif %}
+  },
+{% if taiga_saml_security %}
+  {{ taiga_saml_security }},
+{% endif %}
+{% if taiga_saml_organization %}
+  'organization': {{ taiga_saml_organization }}
+{% else %}
+  'organization': {
+    'en-US': {
+      'name': '{{ taiga_frontend_host }}',
+      'displayname': '{{ taiga_frontend_host }}',
+      'url': '{{ scheme }}://{{ taiga_frontend_host }}',
+    },
+  },
+{% endif %}
+{% if taiga_saml_contact_person %}
+  'contactPerson': {{ taiga_saml_contact_person }}
+{% endif %}
+{% if taiga_saml_mapping %}
+  'mapping': {{ taiga_saml_mapping }}
+{% else %}
+  'mapping': {
+    'attributes': {
+      'email': 'email',
+      'username': 'username',
+      'full_name': 'full_name',
+    },
+  }
+{% endif %}
+}
+{% endif %}

@@ -1,0 +1,26 @@
+---
+# What repo should we check out?
+# (relative to taiga_git_mirror)
+taiga_front_repo: "taiga-front-dist"
+
+# Which directory should we check it out into?
+# (relative to taiga_user_home)
+taiga_front_checkout_dir: "{{ taiga_front_repo }}"
+
+# What Taiga version, tag, branch, or commit should we check out
+# when installing?
+taiga_front_version: "{{ taiga_version }}"
+
+# Where should we write our logs?
+taiga_front_log_dir: "{{ taiga_log_dir }}"
+
+# Do we want to enable debugging for the frontend?
+taiga_front_debug: "{{ taiga_debug }}"
+
+# Do we want to expose the Django admin interface in the front end?
+taiga_front_enable_django_admin: false
+
+# Do we want to fall back to user avatars from gravatar.com, for users
+# who don't upload a profile image but have a matching email address
+# associated with their Gravatar profile?
+taiga_front_enable_gravatar: true

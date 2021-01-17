@@ -1,0 +1,13 @@
+---
+- name: create DH params
+  become: true
+  become_user: taiga
+  command: "openssl dhparam -out {{ _taiga_ssl_dhparam_path }} {{ taiga_webserver_ssl_dhparam_bits }}"
+  args:
+    creates: "{{ _taiga_ssl_dhparam_path }}"
+  tags:
+    - config
+    - front-config
+    - offline
+
+- include: "ssl-{{ 'signed' if taiga_ssl_key else 'selfsign'}}.yml"

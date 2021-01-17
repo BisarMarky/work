@@ -1,0 +1,130 @@
+---
+- name: get current timestamp
+  become: false
+  command: "date +%Y%m%d-%H%M%S"
+  register: date
+  when: _timestamp is not defined
+  changed_when: false
+  check_mode: no
+  tags:
+    - always
+
+- name: set timestamp fact
+  become: false
+  set_fact:
+    _timestamp: "{{ date.stdout }}"
+  when: _timestamp is not defined
+  tags:
+    - always
+
+- name: check for required variables
+  assert:
+    that:
+      - "taiga_secret_key is defined"
+      - "taiga_rabbitmq_password is defined or not (taiga_enable_events | bool or taiga_enable_async_tasks | bool)"
+  tags:
+    - always
+
+- name: set facts related to Python versioning
+  set_fact:
+    _taiga_python_major_version: "{{ ansible_python['version']['major'] }}"
+    _taiga_python_package_prefix: "{{ (ansible_python['version']['major'] == 3) | ternary('python3', 'python') }}"
+  tags:
+    - always
+
+- name: set facts identifying node roles
+  set_fact:
+    _taiga_is_back_node: "{{ ('taiga_back' in group_names) | bool | default(false) }}"
+    _taiga_is_front_node: "{{ ('taiga_front' in group_names) | bool | default(false) }}"
+    _taiga_is_events_node: "{{ ('taiga_events' in group_names) | bool | default(false) }}"
+  tags:
+    - always
+
+- name: set facts related to SSL certificates
+  set_fact:
+    _taiga_ssl_certificate_path: "{{ taiga_user_home }}/{{ taiga_ssl_common_name }}.pem"
+    _taiga_ssl_key_path: "{{ taiga_user_home }}/{{ taiga_ssl_common_name }}.key"
+    _taiga_ssl_csr_path: "{{ taiga_user_home }}/{{ taiga_ssl_common_name }}.csr"
+    _taiga_ssl_dhparam_path: "{{ taiga_user_home }}/dhparam.pem"
+  tags:
+    - always
+
+- name: populate hosts file
+  become: true
+  become_user: root
+  lineinfile:
+    dest: /etc/hosts
+    regexp: '{{ hostvars[item].ansible_default_ipv4.address }}.*{{ hostvars[item].ansible_hostname }}$'
+    line: "{{ hostvars[item].ansible_default_ipv4.address }} {{ hostvars[item].ansible_fqdn }} {{ hostvars[item].ansible_hostname }}"
+    state: present
+  with_items: "{{ groups.all }}"
+  when: >
+    taiga_populate_hosts
+    and (hostvars[item].ansible_default_ipv4 is defined)
+  tags:
+    - config
+    - front-config
+    - back-config
+    - events-config
+    - offline
+
+- name: "create user {{ taiga_user }}"
+  become: true
+  become_user: root
+  user:
+    name: "{{ taiga_user }}"
+    groups: sudo
+    home: "{{ taiga_user_home }}"
+  tags:
+    - install
+    - front-install
+    - back-install
+    - events-install
+    - offline
+
+- name: "create logs directory"
+  become: true
+  become_user: root
+  file:
+    path: "{{ taiga_user_home }}/{{ taiga_log_dir }}"
+    state: directory
+    owner: "{{ taiga_user }}"
+    group: "{{ taiga_user }}"
+  tags:
+    - install
+    - front-install
+    - back-install
+    - events-install
+    - offline
+
+- name: update package cache
+  become: true
+  become_user: root
+  apt:
+    update_cache: true
+  tags:
+    - install
+    - front-install
+    - back-install
+    - events-install
+
+- name: optionally upgrade installed packages
+  become: true
+  become_user: root
+  apt:
+    upgrade: true
+  when: "taiga_upgrade | bool"
+  tags:
+    - install
+    - front-install
+    - back-install
+    - events-install
+
+- name: fail on unsupported service manager
+  fail:
+    msg: "Unsupported value for taiga_service_manager, must be 'circus' or 'systemd'"
+  when: taiga_service_manager not in ['circus', 'systemd']
+  tags:
+    - always
+
+- include: "{{ taiga_service_manager }}.yml"

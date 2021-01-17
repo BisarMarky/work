@@ -1,0 +1,60 @@
+---
+# Which minimum memory requirement (in MB) should we enforce?
+taiga_back_required_memory: 900
+
+# What repo should we check out?
+# (relative to taiga_git_mirror)
+taiga_back_repo: "taiga-back"
+
+# Which directory should we check it out into?
+# (relative to taiga_user_home)
+taiga_back_checkout_dir: "{{ taiga_back_repo }}"
+
+# What Taiga version, tag, branch, or commit should we check out
+# when installing?
+taiga_back_version: "{{ taiga_version }}"
+
+# What name should we use for the virtualenv for the backend?
+taiga_back_venv_name: taiga
+
+# Where should we install the virtualenv for the backend?
+# (relative to taiga_user_home)
+taiga_back_venv_dir: ".virtualenvs/{{ taiga_back_venv_name }}"
+
+# Where should we write our logs?
+taiga_back_log_dir: "{{ taiga_log_dir }}"
+
+# Do we want to enable debugging for the backend?
+taiga_back_debug: "{{ taiga_debug }}"
+
+# Which hostname should go into the Django app's configuration?
+taiga_back_hostname: "{{ ansible_fqdn }}"
+
+# Do we want to load the Taiga initial project templates and user
+# data?
+# (Set both of these to true on initial deployment, and then
+# leave them at the defaults for any subsequent runs.)
+taiga_back_load_initial_project_templates: false
+taiga_back_load_initial_user_data: false
+
+# Do we want to create a set of sample Taiga data? (Leave disabled on
+# a production system.)
+taiga_back_create_sample_data: false
+
+# Do we want to restore data from a backup?
+taiga_back_restore: false
+
+# For restoring from a backup, what's the filename of the local
+# tarball we should restore?
+taiga_back_restore_file: "backup/taiga-restore.tar.bz2"
+
+# Which address should the backend send email from? (Ignored if
+# taiga_enable_email is off.)
+taiga_back_default_from_email: "{{ taiga_admin_email }}"
+
+# What PostgreSQL database name and user should we configure?
+taiga_back_database_name: taiga
+taiga_back_database_user: "{{ taiga_user }}"
+
+# Which Redis host should we connect to?
+taiga_back_redis_host: localhost

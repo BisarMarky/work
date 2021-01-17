@@ -1,0 +1,89 @@
+- name: install required database packages
+  become: true
+  become_user: root
+  apt:
+    name:
+      - postgresql
+      - postgresql-contrib
+      - postgresql-doc
+      - postgresql-server-dev-all
+      - "{{ _taiga_python_package_prefix }}-psycopg2"
+    state: "{{ taiga_upgrade | bool | ternary('latest', 'present') }}"
+  tags:
+    - install
+    - back-install
+
+- name: ensure that the database is running
+  become: true
+  become_user: root
+  service:
+    name: postgresql
+    state: started
+  tags:
+    - install
+    - back-install
+    - offline
+
+- name: create PostgreSQL user
+  become: true
+  become_user: postgres
+  postgresql_user:
+    name: "{{ taiga_back_database_user }}"
+  tags:
+    - install
+    - back-install
+    - offline
+
+- name: check for restore file
+  become: false
+  stat:
+    path: "{{ taiga_back_restore_file }}"
+  register: restore_file
+  delegate_to: localhost
+  tags:
+    - always
+    - offline
+
+- name: issue warning if restore file exists, but restore is not enabled
+  debug:
+    msg: "taiga_back_restore has not been set, but restore file exists at {{ taiga_back_restore_file }}!"
+  when: >
+    not (taiga_back_restore | bool )
+    and restore_file.stat.exists
+  tags:
+    - restore
+    - install
+    - back-install
+    - offline
+
+- name: fail if restore is enabled, but no restore file exists
+  fail:
+    msg: >
+      "taiga_back_restore has been set,
+      but no restore file exists at {{ taiga_back_restore_file }}.
+      Either drop a restore file at {{ taiga_back_restore_file }},
+      or override taiga_back_restore_file."
+  when: >
+    (taiga_back_restore | bool )
+    and not restore_file.stat.exists
+  tags:
+    - restore
+    - install
+    - back-install
+    - offline
+
+- include: "restore.yml"
+  when: >
+    (taiga_back_restore | bool )
+    and restore_file.stat.exists
+
+- name: create PostgreSQL database
+  become: true
+  become_user: postgres
+  postgresql_db:
+    name: "{{ taiga_back_database_name }}"
+    owner: "{{ taiga_back_database_user }}"
+  tags:
+    - install
+    - back-install
+    - offline

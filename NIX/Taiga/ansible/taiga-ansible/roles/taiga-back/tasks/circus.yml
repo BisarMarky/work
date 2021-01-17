@@ -1,0 +1,28 @@
+- name: add taiga to Circus
+  become: true
+  become_user: "{{ taiga_user }}"
+  template:
+    mode: '0644'
+    src: taiga.ini.j2
+    dest: "/etc/circus/conf.d/taiga.ini"
+  notify:
+    - restart circus
+  tags:
+    - config
+    - back-config
+    - offline
+
+- name: add taiga-celery to Circus
+  become: true
+  become_user: "{{ taiga_user }}"
+  template:
+    mode: '0644'
+    src: taiga-celery.ini.j2
+    dest: "/etc/circus/conf.d/taiga-celery.ini"
+  when: taiga_enable_async_tasks | bool
+  notify:
+    - restart circus
+  tags:
+    - config
+    - back-config
+    - offline

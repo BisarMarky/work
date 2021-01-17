@@ -1,0 +1,34 @@
+{
+	"api": "{{'https' if (taiga_enable_ssl | bool) else 'http'}}://{{ taiga_frontend_host }}/api/v1/",
+{% if taiga_enable_events %}
+	"eventsUrl": "{{'wss' if (taiga_enable_ssl | bool) else 'ws'}}://{{ taiga_frontend_host }}/events",
+	"eventsMaxMissedHeartbeats": 5,
+	"eventsHeartbeatIntervalTime": 60000,
+	"eventsReconnectTryInterval": 10000,
+{% endif %}
+	"debug": {{ taiga_front_debug | bool | lower }},
+	"debugInfo": false,
+	"defaultLanguage": "en",
+	"themes": ["taiga"],
+	"defaultTheme": "taiga",
+	"publicRegisterEnabled": {{ taiga_enable_public_register | bool | lower }},
+	"feedbackEnabled": {{ taiga_enable_feedback | bool | lower }},
+{% if taiga_enable_ldap_login | bool %}
+	"loginFormType": "ldap",
+{% endif %}
+	"supportUrl": "{{ taiga_support_url }}",
+	"privacyPolicyUrl": null,
+	"termsOfServiceUrl": null,
+	"maxUploadFileSize": null,
+	"contribPlugins": [
+{% if taiga_enable_slack | bool %}
+         "/plugins/slack/slack.json"{% if taiga_enable_saml_login | bool %},{% endif %}
+{% endif %}
+{% if taiga_enable_saml_login | bool %}
+	"/plugins/saml-auth/saml-auth.json"
+{% endif %}
+	],
+	"tribeHost": null,
+	"importers": [],
+	"gravatar": {{ taiga_front_enable_gravatar | bool | lower }}
+}

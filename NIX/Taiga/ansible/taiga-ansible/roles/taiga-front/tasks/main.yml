@@ -1,0 +1,49 @@
+---
+- name: set fact to determine front end install mode
+  set_fact:
+    _taiga_front_install_mode: "{{ 'dist' if '-dist' in taiga_front_repo else 'gulp' }}"
+  tags:
+    always
+
+- name: check out git repository
+  become: true
+  become_user: "{{ taiga_user }}"
+  git:
+    repo: "{{ taiga_git_mirror }}/{{ taiga_front_repo }}"
+    dest: "{{ taiga_user_home }}/{{ taiga_front_checkout_dir }}"
+    version: "{{ taiga_front_version }}"
+    force: true
+  notify:
+    - restart nginx
+  tags:
+    - install
+    - front-install
+
+- include: "{{ _taiga_front_install_mode }}.yml"
+
+- name: create plugins directory
+  become: true
+  become_user: "{{ taiga_user }}"
+  file:
+    path: "{{ taiga_user_home }}/{{ taiga_front_checkout_dir }}/dist/plugins"
+    state: directory
+  tags:
+    - config
+    - front-install
+
+- include: slack.yml
+  when: taiga_enable_slack | bool
+
+- include: saml.yml
+  when: taiga_enable_saml_login | bool
+
+- name: deploy configuration file
+  become: true
+  become_user: "{{ taiga_user }}"
+  template:
+    mode: '0644'
+    src: conf.json.j2
+    dest: "{{ taiga_user_home }}/{{ taiga_front_checkout_dir }}/dist/conf.json"
+  tags:
+    - config
+    - front-config

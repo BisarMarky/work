@@ -1,0 +1,143 @@
+server {
+    listen 80 default_server;
+    server_name _;
+{% if taiga_enable_ssl | bool %}
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl default_server;
+    server_name _;
+{% endif %}
+
+    large_client_header_buffers 4 32k;
+    client_max_body_size 50M;
+    charset utf-8;
+
+    index index.html;
+
+    access_log {{ taiga_user_home }}/{{ taiga_log_dir }}/nginx.access.log;
+    error_log {{ taiga_user_home }}/{{ taiga_log_dir }}/nginx.error.log{{ ' debug' if taiga_webserver_debug | bool else '' }};
+
+    # Frontend
+    location / {
+        root {{ taiga_user_home }}/{{ taiga_front_checkout_dir }}/dist/;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Backend
+    location /api {
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Scheme $scheme;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+{% if _taiga_is_back_node | bool %}
+        proxy_pass http://127.0.0.1:{{ taiga_backend_port }}/api;
+{% else %}
+        proxy_pass http://{{ taiga_backend_host }}:{{ taiga_backend_port }}/api;
+{% endif %}
+        proxy_redirect off;
+    }
+
+{% if taiga_front_enable_django_admin | bool %}
+    # Django admin access (/admin/)
+    location /admin {
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Scheme $scheme;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+{% if _taiga_is_back_node | bool %}
+        proxy_pass http://127.0.0.1:{{ taiga_backend_port }}$request_uri;
+{% else %}
+        proxy_pass http://{{ taiga_backend_host }}:{{ taiga_backend_port }}$request_uri;
+{% endif %}
+        proxy_redirect off;
+    }
+{% endif %}
+
+    # Static files
+    location /static {
+{% if _taiga_is_back_node | bool %}
+        alias /home/taiga/taiga-back/static;
+{% else %}
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Scheme $scheme;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_pass http://{{ taiga_backend_host }}:{{ taiga_backend_port }}$request_uri;
+        proxy_redirect off;
+{% endif %}
+    }
+
+    # Media files
+    location /media {
+{% if _taiga_is_back_node | bool %}
+        alias /home/taiga/taiga-back/media;
+{% else %}
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Scheme $scheme;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_pass http://{{ taiga_backend_host }}:{{ taiga_backend_port }}$request_uri;
+        proxy_redirect off;
+{% endif %}
+    }
+
+{% if taiga_enable_events | bool %}
+    # Taiga-events
+    location /events {
+{% if _taiga_is_events_node | bool %}
+        proxy_pass http://127.0.0.1:{{ taiga_events_port }}/events;
+{% else %}
+        proxy_pass http://{{ taiga_events_host }}:{{ taiga_events_port }}/events;
+{% endif %}
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_connect_timeout 7d;
+        proxy_send_timeout 7d;
+        proxy_read_timeout 7d;
+    }
+{% endif %}
+
+{% if taiga_enable_saml_login | bool %}
+    # SAML authentication callbacks (/saml/)
+    location /saml {
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Scheme $scheme;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+{% if _taiga_is_back_node | bool %}
+        proxy_pass http://127.0.0.1:{{ taiga_backend_port }}$request_uri;
+{% else %}
+        proxy_pass http://{{ taiga_backend_host }}:{{ taiga_backend_port }}$request_uri;
+{% endif %}
+        proxy_redirect off;
+	client_max_body_size 16M;
+    }
+{% endif %}
+
+{% if taiga_enable_ssl | bool %}
+    ssl on;
+    ssl_certificate {{ _taiga_ssl_certificate_path }};
+    ssl_certificate_key {{ _taiga_ssl_key_path }};
+    ssl_session_timeout 5m;
+    ssl_protocols {{ taiga_webserver_ssl_protocols | join(' ') }};
+    ssl_prefer_server_ciphers on;
+    ssl_ciphers {{ taiga_webserver_ssl_ciphers | join(':') }};
+    ssl_session_cache shared:SSL:10m;
+    ssl_dhparam {{ _taiga_ssl_dhparam_path }};
+    ssl_stapling on;
+    ssl_stapling_verify on;
+
+{% if taiga_webserver_enable_hsts %}
+    add_header Strict-Transport-Security "max-age={{ taiga_webserver_hsts_max_age }}; includeSubdomains; preload";
+{% endif %}
+{% endif %}
+
+}

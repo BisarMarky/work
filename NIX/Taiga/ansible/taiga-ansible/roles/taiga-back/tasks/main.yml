@@ -1,0 +1,210 @@
+---
+- name: check for required memory
+  fail:
+    msg: >
+      "The available total memory on the target host, {{
+      ansible_memory_mb['real']['total'] }} MB, is less than the
+      recommended minimum ({{ taiga_back_required_memory }} MB).
+      Installation may fail, primarily due to the memory required for
+      compiling and installing the lxml module. Reduce
+      taiga_back_required_memory (at your own risk) to suppress this
+      message."
+  when: "ansible_memory_mb['real']['total']|int < taiga_back_required_memory|int"
+  tags:
+    - install
+    - back-install
+    - offline
+
+- name: install required backend-specific packages
+  become: true
+  become_user: root
+  apt:
+    name:
+      - autoconf
+      - automake
+      - binutils-doc
+      - bison
+      - build-essential
+      - curl
+      - flex
+      - gettext
+      - git
+      - libffi-dev
+      - libfreetype6-dev
+      - libgdbm-dev
+      - libjpeg-dev
+      - libncurses5-dev
+      - libssl-dev
+      - libtool
+      - libxml2-dev
+      - libxslt-dev
+      - libzmq3-dev
+      - python3
+      - python3-dev
+      - python3-pip
+      - "{{ _taiga_python_package_prefix }}-virtualenv"
+      - tmux
+      - zlib1g-dev
+    state: "{{ taiga_upgrade | bool | ternary('latest', 'present') }}"
+  tags:
+    - install
+    - back-install
+
+- name: set facts identifying backend services
+  set_fact:
+    _taiga_is_rabbit_node: "(taiga_enable_async_tasks | bool or taiga_enable_events | bool) and (taiga_rabbitmq_host in ['localhost', '127.0.0.1', '::1', ansible_hostname, ansible_fqdn])"
+    _taiga_is_redis_node: "(taiga_enable_async_tasks | bool) and (taiga_back_redis_host in ['localhost', '127.0.0.1', '::1', ansible_hostname, ansible_fqdn])"
+  tags: always
+
+- include: rabbitmq.yml
+  when: _taiga_is_rabbit_node | bool
+
+- include: redis.yml
+  when: _taiga_is_redis_node | bool
+
+- include: postgresql.yml
+
+- name: check out git repository
+  become: true
+  become_user: "{{ taiga_user }}"
+  git:
+    repo: "{{ taiga_git_mirror }}/{{ taiga_back_repo }}"
+    dest: "{{ taiga_user_home }}/{{ taiga_back_checkout_dir }}"
+    version: "{{ taiga_back_version }}"
+    force: true
+  notify:
+    - "restart taiga (via {{ taiga_service_manager }})"
+  tags:
+    - install
+    - back-install
+
+- name: install Python packages into virtualenv
+  become: true
+  become_user: "{{ taiga_user }}"
+  pip:
+    requirements: "{{ taiga_user_home }}/{{ taiga_back_checkout_dir }}/requirements.txt"
+    virtualenv: "{{ taiga_user_home }}/{{ taiga_back_venv_dir }}"
+    virtualenv_python: "python3"
+    state: "{{ taiga_upgrade | bool | ternary('latest', 'present') }}"
+  notify:
+    - "restart taiga (via {{ taiga_service_manager }})"
+  tags:
+    - install
+    - back-install
+
+- include: "slack.yml"
+  when: taiga_enable_slack | bool
+
+- include: "ldap.yml"
+  when: taiga_enable_ldap_login | bool
+
+- include: "saml.yml"
+  when: taiga_enable_saml_login | bool
+
+- name: deploy local settings
+  become: true
+  become_user: "{{ taiga_user }}"
+  template:
+    mode: '0644'
+    src: local.py.j2
+    dest: "{{ taiga_user_home }}/{{ taiga_back_checkout_dir }}/settings/local.py"
+  notify:
+    - "restart taiga (via {{ taiga_service_manager }})"
+  tags:
+    - config
+    - back-config
+    - offline
+
+- name: optionally deploy local Celery settings
+  become: true
+  become_user: "{{ taiga_user }}"
+  template:
+    mode: '0644'
+    src: celery_local.py.j2
+    dest: "{{ taiga_user_home }}/{{ taiga_back_checkout_dir }}/settings/celery_local.py"
+  notify:
+    - "restart taiga-celery (via {{ taiga_service_manager }})"
+  when: "taiga_enable_async_tasks | bool"
+  tags:
+    - config
+    - back-config
+    - offline
+
+- name: migrate database
+  become: true
+  become_user: "{{ taiga_user }}"
+  django_manage:
+    app_path: "{{ taiga_user_home }}/{{ taiga_back_checkout_dir }}"
+    command: migrate
+    virtualenv: "{{ taiga_user_home }}/{{ taiga_back_venv_dir }}"
+  tags:
+    - install
+    - back-install
+    - offline
+
+- name: optionally load initial user data
+  become: true
+  become_user: "{{ taiga_user }}"
+  django_manage:
+    app_path: "{{ taiga_user_home }}/{{ taiga_back_checkout_dir }}"
+    command: loaddata initial_user
+    virtualenv: "{{ taiga_user_home }}/{{ taiga_back_venv_dir }}"
+  when: taiga_back_load_initial_user_data
+  tags:
+    - install
+    - back-install
+    - offline
+
+- name: optionally load initial project templates
+  become: true
+  become_user: "{{ taiga_user }}"
+  django_manage:
+    app_path: "{{ taiga_user_home }}/{{ taiga_back_checkout_dir }}"
+    command: loaddata initial_project_templates
+    virtualenv: "{{ taiga_user_home }}/{{ taiga_back_venv_dir }}"
+  when: taiga_back_load_initial_project_templates
+  tags:
+    - install
+    - back-install
+    - offline
+
+- name: compile messages
+  become: true
+  become_user: "{{ taiga_user }}"
+  django_manage:
+    app_path: "{{ taiga_user_home }}/{{ taiga_back_checkout_dir }}"
+    command: compilemessages
+    virtualenv: "{{ taiga_user_home }}/{{ taiga_back_venv_dir }}"
+  tags:
+    - install
+    - back-install
+    - offline
+
+- name: collect static assets
+  become: true
+  become_user: "{{ taiga_user }}"
+  django_manage:
+    app_path: "{{ taiga_user_home }}/{{ taiga_back_checkout_dir }}"
+    command: collectstatic
+    virtualenv: "{{ taiga_user_home }}/{{ taiga_back_venv_dir }}"
+  tags:
+    - install
+    - back-install
+    - offline
+
+- name: optionally create sample data
+  become: true
+  become_user: "{{ taiga_user }}"
+  django_manage:
+    app_path: "{{ taiga_user_home }}/{{ taiga_back_checkout_dir }}"
+    command: sample_data
+    virtualenv: "{{ taiga_user_home }}/{{ taiga_back_venv_dir }}"
+  when: taiga_back_create_sample_data
+  tags:
+    - install
+    - back-install
+    - offline
+
+- include: "{{ taiga_service_manager }}.yml"
+
+- include: "backup.yml"

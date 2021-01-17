@@ -1,0 +1,15 @@
+---
+- name: "make systemd configuration directory writeable for user {{ taiga_user }}"
+  become: true
+  become_user: root
+  file:
+    path: /etc/systemd/system
+    owner: root
+    group: taiga
+    mode: '0775'
+  tags:
+    - config
+    - front-config
+    - back-config
+    - events-config
+    - offline

@@ -1,0 +1,45 @@
+- name: install pyOpenSSL
+  become: true
+  become_user: root
+  apt:
+    name: "{{ _taiga_python_package_prefix }}-openssl"
+    state: "{{ taiga_upgrade | bool | ternary('latest', 'present') }}"
+  tags:
+    - install
+    - back-install
+
+- name: create SAML x509 private key
+  become: true
+  become_user: taiga
+  openssl_privatekey:
+    path: "{{ _taiga_ssl_key_path }}"
+    size: 4096
+  tags:
+    - config
+    - back-config
+    - offline
+
+- name: create SAML x509 certificate request
+  become: true
+  become_user: taiga
+  openssl_csr:
+    path: "{{ _taiga_ssl_csr_path }}"
+    privatekey_path: "{{ _taiga_ssl_key_path }}"
+    common_name: "{{ taiga_ssl_common_name }}"
+  tags:
+    - config
+    - back-config
+    - offline
+
+- name: create self-signed SAML x509 certificate
+  become: true
+  become_user: taiga
+  openssl_certificate:
+    path: "{{ _taiga_ssl_certificate_path }}"
+    privatekey_path: "{{ _taiga_ssl_key_path }}"
+    csr_path: "{{ _taiga_ssl_csr_path }}"
+    provider: selfsigned
+  tags:
+    - config
+    - back-config
+    - offline

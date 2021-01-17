@@ -1,0 +1,14 @@
+- name: add taiga-events to Circus
+  become: true
+  become_user: "{{ taiga_user }}"
+  template:
+    mode: '0644'
+    src: taiga-events.ini.j2
+    dest: "/etc/circus/conf.d/taiga-events.ini"
+  when: taiga_enable_events | bool
+  notify:
+    - restart circus
+  tags:
+    - config
+    - events-config
+    - offline

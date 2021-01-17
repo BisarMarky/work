@@ -1,7 +1,0 @@
----
-- hosts: taiga
-  become: yes
-  
-  tasks:
-  - name: Install requirements
-    shell: workon taiga && python manage.py runserver &
